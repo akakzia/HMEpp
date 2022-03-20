@@ -1,0 +1,97 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Normal
+from rl_modules.tqc_networks import Critic
+from rl_modules.networks import GaussianPolicyFlat
+
+epsilon = 1e-6
+
+
+class FlatCritic(nn.Module):
+    def __init__(self, dim_inp, dim_out, n_quantiles, n_nets):
+        super(FlatCritic, self).__init__()
+
+        self.model = Critic(dim_inp, n_quantiles, n_nets)
+
+    def forward(self, obs, act, g):
+        batch_size = obs.shape[0]
+        assert batch_size == len(obs)
+
+        inp_state = torch.cat([obs, g], dim=-1)
+
+        q_z = self.model(inp_state, act)
+
+        return q_z
+
+class FlatActor(nn.Module):
+    def __init__(self, dim_inp, dim_out):
+        super(FlatActor, self).__init__()
+
+        self.model = GaussianPolicyFlat(dim_inp, dim_out)
+
+    def forward(self, obs, g):
+        batch_size = obs.shape[0]
+        assert batch_size == len(obs)
+
+        inp = torch.cat([obs, g], dim=-1)
+
+        mean, logstd = self.model(inp)
+        return mean, logstd
+
+    def sample(self, obs, g):
+        mean, log_std = self.forward(obs, g)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        y_t = torch.tanh(x_t)
+        action = y_t
+        log_prob = normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log((1 - y_t.pow(2)) + epsilon)
+        log_prob = log_prob.sum(-1, keepdim=True)
+        return action, log_prob, torch.tanh(mean)
+
+class FlatSemantic:
+    def __init__(self, env_params):
+        self.dim_obs = env_params['obs']
+        self.dim_goal = env_params['goal']
+        self.dim_act = env_params['action']
+
+        self.q_n_quantiles = 25
+        self.q_n_nets = 2
+
+        self.quantiles_total = self.q_n_quantiles * self.q_n_nets
+        self.top_quantiles_to_drop = 2
+		
+        self.q_z = None
+        self.target_q_z = None
+        self.pi_tensor = None
+        self.log_prob = None
+
+        dim_actor_input = self.dim_obs + self.dim_goal
+        dim_actor_output = self.dim_act
+
+        dim_critic_input = self.dim_obs + self.dim_goal + self.dim_act
+        dim_critic_output = 1
+
+        self.critic = FlatCritic(dim_critic_input, dim_critic_output, self.q_n_quantiles, self.q_n_nets)
+        self.critic_target = FlatCritic(dim_critic_input, dim_critic_output, self.q_n_quantiles, self.q_n_nets)
+        self.actor = FlatActor(dim_actor_input, dim_actor_output)
+
+    def policy_forward_pass(self, obs, g, no_noise=False):
+        if not no_noise:
+            self.pi_tensor, self.log_prob, _ = self.actor.sample(obs, g)
+        else:
+            _, self.log_prob, self.pi_tensor = self.actor.sample(obs, g)
+
+    def forward_pass(self, obs, g, actions=None):
+        self.pi_tensor, self.log_prob, _ = self.actor.sample(obs, g)
+
+        if actions is not None:
+            self.q_z = self.critic.forward(obs, self.pi_tensor, g)
+            return self.critic.forward(obs, actions, g)
+        else:
+            with torch.no_grad():
+                self.target_q_z = self.critic_target.forward(obs, self.pi_tensor, g)
+            self.q_z = None
