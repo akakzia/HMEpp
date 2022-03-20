@@ -133,17 +133,14 @@ def launch(args):
             if rank==0: logger.info('\tRunning eval ..')
             # Performing evaluations
             t_i = time.time()
-            all_results = []
             eval_goals = [(e[-2], e[-1]) for e in args.env_params['cells']]
-            for _ in range(args.n_test_rollouts):
-                episodes = rollout_worker.test_rollout(eval_goals,agent_network,
-                                                                episode_duration=args.episode_duration,
-                                                                animated=False)
-                # results = np.array([str(e['g'][0]) == str(e['ag'][-1]) for e in episodes]).astype(np.int)
-                rewards = np.array([e['rewards'][-1] for e in episodes])
-                all_results.append(rewards)
+            episodes = rollout_worker.test_rollout(eval_goals,agent_network,
+                                                            episode_duration=args.episode_duration,
+                                                            animated=False)
+            # results = np.array([str(e['g'][0]) == str(e['ag'][-1]) for e in episodes]).astype(np.int)
+            rewards = np.array([e['rewards'][-1] for e in episodes])
             # rewards = np.array([e['rewards'][-1] for e in episodes])
-            # all_results = MPI.COMM_WORLD.gather(results, root=0)
+            all_results = MPI.COMM_WORLD.gather(rewards, root=0)
             # all_rewards = MPI.COMM_WORLD.gather(rewards, root=0)
             time_dict['eval'] += time.time() - t_i
 
