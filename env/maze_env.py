@@ -42,7 +42,8 @@ class MazeEnv(gym.Env):
     ) -> None:
         self.t = 0  # time steps
         self.maze_task = maze_task
-        self._task = self.maze_task(scale=maze_size_scaling, goal=(0, 0), **task_kwargs)
+        self.target_goal = (0, 0)
+        self._task = self.maze_task(scale=maze_size_scaling, goal=self.target_goal, **task_kwargs)
         self._maze_height = height = maze_height
         self._maze_size_scaling = size_scaling = maze_size_scaling
         self._inner_reward_scaling = inner_reward_scaling

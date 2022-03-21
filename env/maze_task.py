@@ -396,9 +396,9 @@ class GoalReward4Rooms(MazeTask):
     PENALTY: float = 0
     MAZE_SIZE_SCALING: Scaling = Scaling(ant=4.0, point=4.0, swimmer=4.0)
 
-    def __init__(self, scale: float) -> None:
+    def __init__(self, scale: float, goal: Tuple[float, float] = (3.0, -3.0)) -> None:
         super().__init__(scale)
-        self.goals = [MazeGoal(np.array([6.0 * scale, -6.0 * scale]))]
+        self.goals = [MazeGoal(np.array(goal) * scale)]
 
     def reward(self, obs: np.ndarray) -> float:
         for goal in self.goals:
@@ -411,13 +411,13 @@ class GoalReward4Rooms(MazeTask):
         E, B, R = MazeCell.EMPTY, MazeCell.BLOCK, MazeCell.ROBOT
         return [
             [B, B, B, B, B, B, B, B, B],
-            [B, E, E, E, B, E, E, E, B],
+            [B, R, E, E, B, E, E, E, B],
             [B, E, E, E, E, E, E, E, B],
             [B, E, E, E, B, E, E, E, B],
             [B, B, E, B, B, B, E, B, B],
             [B, E, E, E, B, E, E, E, B],
             [B, E, E, E, E, E, E, E, B],
-            [B, R, E, E, B, E, E, E, B],
+            [B, E, E, E, B, E, E, E, B],
             [B, B, B, B, B, B, B, B, B],
         ]
 

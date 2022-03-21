@@ -11,7 +11,7 @@ Here are the param for the training
 def get_args():
     parser = argparse.ArgumentParser()
     # the general arguments
-    parser.add_argument('--seed', type=int, default=1, help='random seed')
+    parser.add_argument('--seed', type=int, default=np.random.randint(1e5), help='random seed')
     parser.add_argument('--num-workers', type=int, default=MPI.COMM_WORLD.Get_size(), help='the number of cpus to collect samples')
     parser.add_argument('--cuda', action='store_true', help='if use gpu do the acceleration')
     # the environment arguments

@@ -1,4 +1,7 @@
+.gitignore
 __pycache__/
 .idea/
 output/
 plots.py
+results/
+plots/

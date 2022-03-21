@@ -33,8 +33,8 @@ def launch(args):
     t_total_init = time.time()
 
     # Make the environment
-    assert args.env_name in ['PointUMaze-v1', 'PointSquareRoom-v1', 'PointCorridor-v1'], \
-    'Please use one of the following environments: PointUMaze-v1, PointSquareRoom-v1, PointCorridor-v1'
+    assert args.env_name in ['PointUMaze-v1', 'PointSquareRoom-v1', 'PointCorridor-v1', 'PointLongCorridor-v1', 'Point4Rooms-v1'], \
+    'Please use one of the following environments: PointUMaze-v1, PointSquareRoom-v1, PointCorridor-v1, PointLongCorridor-v1, Point4Rooms-v1'
     env = gym.make(args.env_name)
 
     # set random seeds for reproducibility
