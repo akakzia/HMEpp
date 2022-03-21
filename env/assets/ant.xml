@@ -66,6 +66,7 @@
         </body>
       </body>
     </body>
+    <site name="goal_site0" pos="1.0 0.0 0.0" rgba="0.7 0.1 0.1 1" size="0.4" />
   </worldbody>
   <actuator>
     <motor joint="hip_4" ctrlrange="-30.0 30.0" ctrllimited="true" />

@@ -74,12 +74,29 @@ class AntEnv(AgentModel):
 
     def _get_obs(self):
         # No cfrc observation
-        return np.concatenate(
-            [
-                self.sim.data.qpos.flat[:15],  # Ensures only ant obs.
-                self.sim.data.qvel.flat[:14],
-            ]
-        )
+        # return np.concatenate(
+        #     [
+        #         self.sim.data.qpos.flat[:15],  # Ensures only ant obs.
+        #         self.sim.data.qvel.flat[:14],
+        #     ]
+        # )
+
+        obs = np.concatenate(
+                                [
+                                    self.sim.data.qpos.flat[:15],  # Ensures only ant obs.
+                                    self.sim.data.qvel.flat[:14],
+                                ]
+                            )
+        achieved_goal = self.sim.data.qpos.flat[:2]
+
+        # 0 index because there is one target goal
+        desired_goal = self.sim.data.site_xpos[0][:2]
+
+        return {
+            'observation': obs.copy(),
+            'achieved_goal': achieved_goal.copy(),
+            'desired_goal': desired_goal.copy()
+        }
 
     def reset_model(self):
         qpos = self.init_qpos + self.np_random.uniform(

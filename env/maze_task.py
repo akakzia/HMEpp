@@ -545,6 +545,33 @@ class GoalRewardLongCorridor(GoalRewardUMaze):
 class DistRewardLongCorridor(GoalRewardLongCorridor, DistRewardMixIn):
     pass
 
+class GoalRewardBottleneck(GoalRewardUMaze):
+    MAZE_SIZE_SCALING: Scaling = Scaling(ant=2.0, point=4.0, swimmer=2.0)
+
+    def __init__(self, scale: float, goal: Tuple[float, float] = (1.0, 3.0)) -> None:
+        super().__init__(scale)
+        self.goals = [MazeGoal(np.array(goal) * scale)]
+
+    @staticmethod
+    def create_maze() -> List[List[MazeCell]]:
+        E, B, R = MazeCell.EMPTY, MazeCell.BLOCK, MazeCell.ROBOT
+        return [
+            [B, B, B, B, B, B, B, B, B, B, B, B],
+            [B, R, E, E, B, E, E, E, E, E, E, B],
+            [B, E, E, E, E, E, E, B, B, E, E, B],
+            [B, E, E, E, B, B, E, E, B, B, B, B],
+            [B, B, B, B, B, E, E, E, E, E, E, B],
+            [B, E, E, E, E, E, B, E, E, E, E, B],
+            [B, E, E, E, E, E, B, E, E, E, E, B],
+            [B, E, E, E, E, E, B, E, E, E, E, B],
+            [B, E, E, E, E, E, B, E, E, E, E, B],
+            [B, E, E, E, E, E, B, E, E, E, E, B],
+            [B, E, E, E, E, E, B, E, E, E, E, B],
+            [B, B, B, B, B, B, B, B, B, B, B, B],
+        ]
+
+class DistRewardBottleneck(GoalRewardBottleneck, DistRewardMixIn):
+    pass
 
 class GoalRewardBlockMaze(GoalRewardUMaze):
     MAZE_SIZE_SCALING: Scaling = Scaling(ant=8.0, point=4.0, swimmer=None)
@@ -783,6 +810,7 @@ class TaskRegistry:
         "BlockMaze": [DistRewardBlockMaze, GoalRewardBlockMaze],
         "Corridor": [DistRewardCorridor, GoalRewardCorridor, NoRewardCorridor],
         "LongCorridor": [DistRewardLongCorridor, GoalRewardLongCorridor],
+        "Bottleneck": [DistRewardBottleneck, GoalRewardBottleneck],
         "BlockCarry": [DistRewardBlockCarry, GoalRewardBlockCarry, NoRewardBlockCarry],
         "Billiard": [
             DistRewardBilliard,  # v0
