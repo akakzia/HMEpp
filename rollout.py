@@ -383,7 +383,7 @@ class HMERolloutWorker(RolloutWorker):
     def sync(self):
         """ Synchronize the list of pairs (stepping stone, Beyond) between all workers"""
         # Transformed to set to avoid duplicates
-        self.stepping_stones_beyond_pairs_list = set(MPI.COMM_WORLD.allreduce(self.stepping_stones_beyond_pairs_list))
+        self.stepping_stones_beyond_pairs_list = set(MPI.COMM_WORLD.allreduce(list(self.stepping_stones_beyond_pairs_list)))
 
 
     def train_rollout(self, agent_network, time_dict=None):
