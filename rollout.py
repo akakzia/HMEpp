@@ -12,7 +12,7 @@ class RolloutWorker:
         self.goal_dim = args.env_params['goal']
 
         # Agent memory to internalize SP intervention
-        self.stepping_stones_beyond_pairs_list = []
+        self.stepping_stones_beyond_pairs_list = set()
 
         # List of items to remove from internalization memory
         # self.to_remove_internalization = []
@@ -50,7 +50,7 @@ class RolloutWorker:
         self.dijkstra_to_goal = None
         # Internalization
         if len(self.stepping_stones_beyond_pairs_list) > 0:
-            (self.internalized_ss, self.internalized_beyond) = random.choices(self.stepping_stones_beyond_pairs_list, k=1)[0]
+            (self.internalized_ss, self.internalized_beyond) = random.choices(list(self.stepping_stones_beyond_pairs_list), k=1)[0]
         else:
             self.internalized_ss = None
             self.internalized_beyond = None
@@ -250,7 +250,7 @@ class HMERolloutWorker(RolloutWorker):
                 all_episodes += episodes
 
                 success = episodes[-1]['success'][-1]
-                if success and self.current_config == self.long_term_goal and self.strategy == 2:
+                if success and self.current_config == self.long_term_goal and self.strategy in [2, 4]:
                     self.state = 'Explore'
                 else:
                     # Add stepping stone to agent's memory for internalization
@@ -267,25 +267,45 @@ class HMERolloutWorker(RolloutWorker):
                         last_ag = tuple(self.last_obs['achieved_cell'])
                 else:
                     last_ag = tuple(self.last_obs['achieved_cell'])
-                explore_goal = next(iter(agent_network.sample_from_frontier(last_ag, 1)), None)  # first element or None
                 if time_dict is not None:
                     time_dict['goal_sampler'] += time.time() - t_i
-                if explore_goal:
-                    episode = self.generate_one_rollout(explore_goal, False, self.episode_duration)
-                    all_episodes.append(episode)
-                    success = episode['success'][-1]
-                    if not success and self.long_term_goal:
-                        # Add pair to agent's memory
-                        self.stepping_stones_beyond_pairs_list.append((self.long_term_goal, explore_goal))
-                if explore_goal is None or (not success and self.strategy !=3):
-                    self.reset()
-                    continue
-                # if strategy is Beyond and goal not reached, then keep performing rollout until budget ends
-                elif self.strategy == 3 and not success:
-                    while not success and len(all_episodes) < self.max_episodes:
+                if self.strategy == 4:
+                    explore_goals = agent_network.sample_many_from_frontier(last_ag, 10)
+                    if len(explore_goals) > 0:
+                        stop = 1
+                        # continue to do beyond k times
+                        success = True
+                        j = 0
+                        while success and len(all_episodes) < self.max_episodes and j < len(explore_goals):
+                            episode = self.generate_one_rollout(explore_goals[j], False, self.episode_duration)
+                            all_episodes.append(episode)
+                            success = episode['success'][-1]
+                            j = j + 1
+                            if success: 
+                                last_ag = explore_goals[j-1]
+                        if not success:
+                            self.stepping_stones_beyond_pairs_list.add((last_ag, explore_goals[j-1]))
+                            self.reset()
+                    else:
+                        self.reset()
+                else:
+                    explore_goal = next(iter(agent_network.sample_from_frontier(last_ag, 1)), None)  # first element or None
+                    if explore_goal:
                         episode = self.generate_one_rollout(explore_goal, False, self.episode_duration)
                         all_episodes.append(episode)
                         success = episode['success'][-1]
+                        if not success and self.long_term_goal:
+                            # Add pair to agent's memory
+                            self.stepping_stones_beyond_pairs_list.append((self.long_term_goal, explore_goal))
+                    if explore_goal is None or (not success and self.strategy !=3):
+                        self.reset()
+                        continue
+                    # if strategy is Beyond and goal not reached, then keep performing rollout until budget ends
+                    elif self.strategy == 3 and not success:
+                        while not success and len(all_episodes) < self.max_episodes:
+                            episode = self.generate_one_rollout(explore_goal, False, self.episode_duration)
+                            all_episodes.append(episode)
+                            success = episode['success'][-1]
             else:
                 raise Exception(f"unknown state : {self.state}")
 
@@ -363,10 +383,15 @@ class HMERolloutWorker(RolloutWorker):
     def sync(self):
         """ Synchronize the list of pairs (stepping stone, Beyond) between all workers"""
         # Transformed to set to avoid duplicates
-        self.stepping_stones_beyond_pairs_list = list(set(MPI.COMM_WORLD.allreduce(self.stepping_stones_beyond_pairs_list)))
+        self.stepping_stones_beyond_pairs_list = set(MPI.COMM_WORLD.allreduce(self.stepping_stones_beyond_pairs_list))
 
 
     def train_rollout(self, agent_network, time_dict=None):
+        nb_total_goals = len(agent_network.teacher.oracle_graph.configs)
+        nb_discovered_goals = len(agent_network.semantic_graph.configs)
+        if nb_discovered_goals >= nb_total_goals:
+            # Bye bye SP
+            self.args.intervention_prob = 0
         if np.random.uniform() < self.args.intervention_prob:
             # SP intervenes
             all_episodes = self.perform_social_episodes(agent_network, time_dict)

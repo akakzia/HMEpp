@@ -21,8 +21,8 @@ def get_args():
     parser.add_argument('--n-epochs', type=int, default=100, help='the number of epochs to train the agent')
     parser.add_argument('--n-cycles', type=int, default=10, help='the times to collect samples per epoch')
     parser.add_argument('--n-batches', type=int, default=30, help='the times to update the network')
-    parser.add_argument('--num-rollouts-per-mpi', type=int, default=25, help='the rollouts per mpi')
-    parser.add_argument('--episode-duration', type=int, default=20, help='number of time steps for each mini episodes')
+    parser.add_argument('--num-rollouts-per-mpi', type=int, default=100, help='the rollouts per mpi')
+    parser.add_argument('--episode-duration', type=int, default=10, help='number of time steps for each mini episodes')
     parser.add_argument('--batch-size', type=int, default=256, help='the sample batch size')
     # the replay arguments
     parser.add_argument('--replay-strategy', type=str, default='future', help='the HER strategy')
@@ -62,12 +62,12 @@ def get_args():
     parser.add_argument('--rollout-exploration', type=str, default='sr_and_k_distance', help='method to compute best path in train rollouts : sr_and_best_distance sr_and_k_distance or sample_sr')
     parser.add_argument('--rollout-exploration-k', type=int, default=5, help='sample among k best paths')
     parser.add_argument('--rollout-distance-ratio', type=float, default=0.5, help='indicate the ratio at which exploration alternate beetween sr and distance criteria')
-    parser.add_argument('--max-path-len', type=int, default=25, help='maximum path length')
+    parser.add_argument('--max-path-len', type=int, default=100, help='maximum path length')
     # Help Me Explore args
     parser.add_argument('--intervention-prob', type=float, default=1., help='the probability of SP intervention')
     parser.add_argument('--exploration-noise-prob', type=float, default=0., help='When going to frontier, apply noise at ratio')
-    parser.add_argument('--strategy', type=int, default=2, help='Possible values: 0: Frontier; 1: Frontier and Stop, 2: Frontier and Beyond'
-                                                                   '3: Beyond')
+    parser.add_argument('--strategy', type=int, default=4, help='Possible values: 0: Frontier; 1: Frontier and Stop, 2: Frontier and Beyond'
+                                                                   '3: Beyond, 4: Frontier and n Beyonds')
 
     parser.add_argument('--internalization-prob', type=float, default=0.0, help='the probability of internalizing SP intervention')
     parser.add_argument('--ss-internalization-prob', type=float, default=0., help='the probability of internalizing stepping stones')

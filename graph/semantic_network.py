@@ -98,6 +98,9 @@ class SemanticNetwork():
     
     def sample_from_frontier(self,frontier_node,k):
         return self.teacher.sample_from_frontier(frontier_node,self.semantic_graph,k)
+    
+    def sample_many_from_frontier(self,frontier_node,k):
+        return self.teacher.sample_many_from_frontier(frontier_node,self.semantic_graph,k)
 
     def sample_rand_neighbour(self,source,excluding = []):
         neighbours = list(filter( lambda x : x not in excluding, self.semantic_graph.iterNeighbors(source)))

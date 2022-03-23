@@ -99,9 +99,11 @@ class Teacher():
             elif self.strategy == 1:
                 # If strategy is Frontier and Stop
                 goals = random.choices(reachable_terminal, k=k)
-            elif self.strategy == 2:
+            elif self.strategy in [2, 4]:
                 # If strategy is Frontier and Beyond
                 goals = random.choices(reachable_stepping_stones, k=k)
+                if len(goals) == 0:
+                    goals = random.choices(reachable_terminal, k=k)
             else:
                 raise NotImplementedError
             self.ss_interventions += 1
@@ -127,6 +129,23 @@ class Teacher():
             return random.choices(to_exploit,k=k)
         else : 
             return []
+    
+    def sample_many_from_frontier(self,node,agent_graph,k):
+        current_node = node
+        goals = []
+        for _ in range(k):
+            to_explore = []
+            for neighbour in self.oracle_graph.iterNeighbors(current_node):
+                if not agent_graph.hasEdge(node,neighbour) and neighbour not in goals + [node]:
+                    to_explore.append(neighbour)
+            # If there are goals outside to explore
+            if to_explore:
+                goal = random.choices(to_explore)[0] # sample with replacement
+                goals.append(goal)
+                current_node = goal
+            else : 
+                return goals
+        return goals
 
     def sample_goal_uniform(self,nb_goal):
         return random.choices(self.oracle_graph.configs.inverse,k=nb_goal) # sample with replacement
