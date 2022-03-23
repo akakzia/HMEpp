@@ -306,6 +306,9 @@ class SemanticGraph:
         return (self.configs[c1],self.configs[c2])
 
     def create_edge_stats(self,edge,start_sr):
+        if self.args.adjacency_bias and not (((abs(edge[0][0] - edge[1][0]) == 4) and (abs(edge[0][1] - edge[1][1]) == 0)) or 
+                                            ((abs(edge[0][1] - edge[1][1]) == 4) and (abs(edge[0][0] - edge[1][0]) == 0))):
+            return
         n1,n2 = self.edge_config_to_edge_id(edge)
         if not self.nk_graph.hasEdge(n1,n2):
             self.nk_graph.addEdge(n1,n2)

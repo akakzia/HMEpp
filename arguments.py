@@ -57,6 +57,7 @@ def get_args():
     parser.add_argument('--edge-prior', type=float, default=0.5, help='default value for edges')
     parser.add_argument('--expert-graph-start', type=bool, default=False, help='If the agent starts with an expert graph')
     parser.add_argument('--evaluation-algorithm', type=str, default='dijkstra', help='dijkstra (best SR) or bfs (shortest path)')
+    parser.add_argument('--adjacency-bias', type=bool, default=False, help='Construct edge only if cells are adjacent')
     # rollout exploration args
     parser.add_argument('--rollout-exploration', type=str, default='sr_and_k_distance', help='method to compute best path in train rollouts : sr_and_best_distance sr_and_k_distance or sample_sr')
     parser.add_argument('--rollout-exploration-k', type=int, default=5, help='sample among k best paths')
