@@ -200,7 +200,7 @@ class RLAgent:
                     self.model.actor.state_dict(), self.model.critic.state_dict()],
                     model_path + '/model_{}.pt'.format(epoch))
 
-    def load(self, model_path, args):
+    def load(self, model_path):
 
         o_mean, o_std, g_mean, g_std, actor, critic = torch.load(model_path, map_location=lambda storage, loc: storage)
         self.model.actor.load_state_dict(actor)

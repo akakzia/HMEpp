@@ -1,45 +1,85 @@
-import numpy as np
-import gym
+import torch
+from rl_modules.rl_agent import RLAgent
 import env
-import networkit as nk
+import gym
 from bidict import bidict
-from graph.semantic_network import SemanticNetwork
-from graph.semantic_graph import SemanticGraph
+import numpy as np
+from rollout import HMERolloutWorker
+from goal_sampler import GoalSampler
+import random
+from mpi4py import MPI
 from arguments import get_args
+import networkit as nk
+from graph.semantic_graph import SemanticGraph
+from graph.semantic_network import SemanticNetwork
 
-# Get parameters
-args = get_args()
+def get_env_params(env):
+    obs = env.reset()
 
-env_name = 'PointUMaze-v1'
+    # close the environment
+    params = {'obs': obs['observation'].shape[0], 'goal': obs['desired_goal'].shape[0],
+              'action': env.action_space.shape[0], 'action_max': env.action_space.high[0],
+              'max_timesteps': env._max_episode_steps, 'cells': env.cells_graph}
+    return params
 
-env = gym.make(env_name)
+if __name__ == '__main__':
+    num_eval = 1
+    path = '/home/ahmed/models/'
+    model_path = path + 'model_80.pt'
 
-env.reset()
+    args = get_args()
 
-d = False
+    # Make the environment
+    env = gym.make(args.env_name)
 
-cells = env.cells_graph
+    # set random seeds for reproduce
+    args.seed = np.random.randint(1e6)
+    env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    np.random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    torch.manual_seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    if args.cuda:
+        torch.cuda.manual_seed(args.seed + MPI.COMM_WORLD.Get_rank())
 
-nk_graph = nk.Graph(0,weighted=True, directed=True)
-semantic_graph = SemanticGraph(bidict(), nk_graph, args=args)
-sp_network = SemanticNetwork(semantic_graph=semantic_graph, args=args)
+    args.env_params = get_env_params(env)
 
-# create network
-sp_network.create(cells)
+    # create the sac agent to interact with the environment
+    if args.agent == "SAC":
+        policy = RLAgent(args, env.compute_reward)
+        policy.load(model_path)
+    else:
+        raise NotImplementedError
 
-# Check graph
-# for node in sp_network.semantic_graph.configs:
-#     print('Source node: {}'.format(node))
-#     for n in sp_network.semantic_graph.iterNeighbors(node):
-#         print(n)
-#     print('----------------------------')
+    # def rollout worker
+    rollout_worker = HMERolloutWorker(env, policy,  args)
 
-for node in sp_network.semantic_graph.configs:
-    print(node)
-    obs = env.reset_goal(goal=(-3, -3))
-    for _ in range(100):
-        action = env.action_space.sample()
-        obs, r, d, _ = env.step(action)
-        env.render()
-    stop = 1
-env.close()
+    # Initialize SP graph
+    sp_nk_graph = nk.Graph(0,weighted=True, directed=True)
+    sp_semantic_graph = SemanticGraph(bidict(), sp_nk_graph, args=args)
+    sp_network = SemanticNetwork(semantic_graph=sp_semantic_graph, args=args)
+
+    # create network
+    sp_network.create(args.env_params['cells'])
+
+    # load agent graph
+    nk_graph = nk.Graph(0, weighted=True, directed=True)
+    semantic_graph = SemanticGraph(bidict(), nk_graph, args=args)
+    agent_network = SemanticNetwork(semantic_graph, args=args)
+    agent_network = agent_network.load(path, 80, args)
+
+    # Affect teacher to agent
+    agent_network.teacher.oracle_graph = sp_network.semantic_graph
+
+    eval_goals = [(e[-2], e[-1]) for e in args.env_params['cells'][-20:]]
+
+    all_results = []
+    for i in range(num_eval):
+        episodes = rollout_worker.test_rollout(eval_goals, agent_network,
+                                               episode_duration=args.episode_duration,
+                                               animated=False)
+        results = np.array([e['success'][-1].astype(np.float32) for e in episodes])
+        all_results.append(results)
+
+    results = np.array(all_results)
+    print('Av Success Rate: {}'.format(results.mean()))
+

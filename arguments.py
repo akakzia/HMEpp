@@ -29,7 +29,7 @@ def get_args():
     parser.add_argument('--replay-k', type=int, default=4, help='ratio to be replace')
     # The RL arguments
     parser.add_argument('--gamma', type=float, default=0.99, help='the discount factor')
-    parser.add_argument('--alpha', type=float, default=0.02, help='entropy coefficient')
+    parser.add_argument('--alpha', type=float, default=0.2, help='entropy coefficient')
     parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, help='Tune entropy')
     parser.add_argument('--action-l2', type=float, default=1, help='l2 reg')
     parser.add_argument('--lr-actor', type=float, default=0.001, help='the learning rate of the actor')
@@ -69,7 +69,8 @@ def get_args():
     parser.add_argument('--strategy', type=int, default=4, help='Possible values: 0: Frontier; 1: Frontier and Stop, 2: Frontier and Beyond'
                                                                    '3: Beyond, 4: Frontier and n Beyonds')
 
-    parser.add_argument('--internalization-prob', type=float, default=0.0, help='the probability of internalizing SP intervention')
+    parser.add_argument('--internalization-prob', type=float, default=0.8, help='the probability of internalizing SP intervention')
+    parser.add_argument('--intern-queue', type=int, default=10, help='Length of the internalization memory buffer')
     parser.add_argument('--ss-internalization-prob', type=float, default=0., help='the probability of internalizing stepping stones')
 
     parser.add_argument('--teacher-bias', type=bool, default=True, help='If True, automatically add given goals by SP to the agent graph')

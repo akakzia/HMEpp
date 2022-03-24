@@ -12,7 +12,7 @@ class RolloutWorker:
         self.goal_dim = args.env_params['goal']
 
         # Agent memory to internalize SP intervention
-        self.stepping_stones_beyond_pairs_list = set()
+        self.stepping_stones_beyond_pairs_list = []
 
         # List of items to remove from internalization memory
         # self.to_remove_internalization = []
@@ -284,7 +284,7 @@ class HMERolloutWorker(RolloutWorker):
                             if success: 
                                 last_ag = explore_goals[j-1]
                         if not success:
-                            self.stepping_stones_beyond_pairs_list.add((last_ag, explore_goals[j-1]))
+                            self.stepping_stones_beyond_pairs_list.append((last_ag, explore_goals[j-1]))
                             self.reset()
                     else:
                         self.reset()
@@ -383,7 +383,8 @@ class HMERolloutWorker(RolloutWorker):
     def sync(self):
         """ Synchronize the list of pairs (stepping stone, Beyond) between all workers"""
         # Transformed to set to avoid duplicates
-        self.stepping_stones_beyond_pairs_list = set(MPI.COMM_WORLD.allreduce(list(self.stepping_stones_beyond_pairs_list)))
+        self.stepping_stones_beyond_pairs_list = MPI.COMM_WORLD.allreduce(self.stepping_stones_beyond_pairs_list)
+        self.stepping_stones_beyond_pairs_list = self.stepping_stones_beyond_pairs_list[-self.args.intern_queue:]
 
 
     def train_rollout(self, agent_network, time_dict=None):
