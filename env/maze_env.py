@@ -397,7 +397,7 @@ class MazeEnv(gym.Env):
     def compute_reward(self, ag: np.ndarray, g: np.ndarray, info=None) -> float:
         """ computes binary reward given achieved and desired cell """
         # reward = 1.0 if np.linalg.norm(ag - g) <= 1.8 else 0
-        reward = 1.0 if np.linalg.norm(ag - self.target_goal) <= 0.9 else 0
+        reward = 1.0 if np.linalg.norm(ag - self.target_goal) <= 1.99 else 0
         return reward
 
     def set_marker(self) -> None:
