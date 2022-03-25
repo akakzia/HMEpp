@@ -55,8 +55,9 @@ class SemanticNetwork():
                 self.semantic_graph.create_node(start_config)
                 self.semantic_graph.create_node(achieved_goal)
 
-                if self.semantic_graph.getNodeId(goal) is not None and self.args.teacher_bias:
-                    self.update_or_create_edge(start_config, goal, success)
+                if not e['beyond_fail']: 
+                    if self.semantic_graph.getNodeId(goal) is not None:
+                        self.update_or_create_edge(start_config, goal, success)
                 if (achieved_goal != goal and start_config != achieved_goal
                         and not self.semantic_graph.hasEdge(start_config, achieved_goal)):
                     self.semantic_graph.create_edge_stats((start_config, achieved_goal), self.args.edge_prior)

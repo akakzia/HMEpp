@@ -170,7 +170,8 @@ class RolloutWorker:
                         ag_continuous=np.array(ep_ag_continuous).copy(),
                         success=np.array(ep_success).copy(),
                         rewards=np.array(ep_rewards).copy(),
-                        self_eval=evaluation)
+                        self_eval=evaluation, 
+                        beyond_fail=False)
 
         self.last_obs = observation_new
         self.last_episode = episode
@@ -278,8 +279,11 @@ class HMERolloutWorker(RolloutWorker):
                         j = 0
                         while success and len(all_episodes) < self.max_episodes and j < len(explore_goals):
                             episode = self.generate_one_rollout(explore_goals[j], False, self.episode_duration)
-                            all_episodes.append(episode)
                             success = episode['success'][-1]
+                            if not success:
+                                # to prevent node create when beyond is not encountered
+                                episode['beyond_fail'] = True
+                            all_episodes.append(episode)
                             j = j + 1
                             if success: 
                                 last_ag = explore_goals[j-1]
