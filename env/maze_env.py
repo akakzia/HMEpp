@@ -345,17 +345,22 @@ class MazeEnv(gym.Env):
         else:
             view = []
 
-        additional_obs = []
+        # additional_obs = []
 
-        if self._observe_balls:
-            for name in self.object_balls:
-                additional_obs.append(self.wrapped_env.get_body_com(name))
+        # if self._observe_balls:
+        #     for name in self.object_balls:
+        #         additional_obs.append(self.wrapped_env.get_body_com(name))
 
-        if self._observe_blocks:
-            for name in self.movable_blocks:
-                additional_obs.append(self.wrapped_env.get_body_com(name))
+        # if self._observe_blocks:
+        #     for name in self.movable_blocks:
+        #         additional_obs.append(self.wrapped_env.get_body_com(name))
 
-        wrapped_obs['observation'] = np.concatenate([wrapped_obs['observation'][:3]] + additional_obs +
+        wrapped_obs['desired_goal'] = np.array(self.target_goal)
+        # Add relative pos of desired goal
+        goal_rel_pos = wrapped_obs['desired_goal'] - wrapped_obs['observation'][:2]
+
+
+        wrapped_obs['observation'] = np.concatenate([wrapped_obs['observation'][:3]] + [goal_rel_pos] +
          [wrapped_obs['observation'][3:]])
         
         # Get achieved row and column
