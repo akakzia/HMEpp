@@ -357,11 +357,11 @@ class MazeEnv(gym.Env):
 
         wrapped_obs['desired_goal'] = np.array(self.target_goal)
         # Add relative pos of desired goal
-        goal_rel_pos = wrapped_obs['desired_goal'] - wrapped_obs['observation'][:2]
+        # goal_rel_pos = wrapped_obs['desired_goal'] - wrapped_obs['observation'][:2]
 
 
-        wrapped_obs['observation'] = np.concatenate([wrapped_obs['observation'][:3]] + [goal_rel_pos] +
-         [wrapped_obs['observation'][3:]])
+        # wrapped_obs['observation'] = np.concatenate([wrapped_obs['observation'][:3]] + [goal_rel_pos] +
+        #  [wrapped_obs['observation'][3:]])
         
         # Get achieved row and column
         row, col = self.get_rowcol(wrapped_obs['achieved_goal'][0], wrapped_obs['achieved_goal'][1])

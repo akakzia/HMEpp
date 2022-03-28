@@ -325,21 +325,29 @@ class HMERolloutWorker(RolloutWorker):
             internalization = False
             # If no SP intervention
             t_i = time.time()
-            if len(agent_network.semantic_graph.configs) > 0:
-                self.long_term_goal = agent_network.sample_goal_uniform(1, use_oracle=False)[0]
+            if self.args.expert_graph_start:
+                self.long_term_goal = agent_network.sample_goal_uniform(1, use_oracle=True)[0]
             else:
-                self.long_term_goal = tuple(np.random.choice([0., 0.], size=(1, self.goal_dim))[0])
+                if len(agent_network.semantic_graph.configs) > 0:
+                    self.long_term_goal = agent_network.sample_goal_uniform(1, use_oracle=False)[0]
+                else:
+                    self.long_term_goal = tuple(np.random.choice([0., 0.], size=(1, self.goal_dim))[0])
 
             if time_dict is not None:
                 time_dict['goal_sampler'] += time.time() - t_i
-            if (agent_network.semantic_graph.hasNode(self.long_term_goal)
-                    and agent_network.semantic_graph.hasNode(self.current_config)
-                    and self.long_term_goal != self.current_config):
+            if self.args.expert_graph_start:
                 new_episodes, _ = self.guided_rollout(self.long_term_goal, evaluation=False,
-                                                      agent_network=agent_network, episode_duration=self.episode_duration,
-                                                      episode_budget=self.max_episodes - len(all_episodes))
+                                                        agent_network=agent_network, episode_duration=self.episode_duration,
+                                                        episode_budget=self.max_episodes - len(all_episodes))
             else:
-                new_episodes = [self.generate_one_rollout(self.long_term_goal, False, self.episode_duration)]
+                if (agent_network.semantic_graph.hasNode(self.long_term_goal)
+                        and agent_network.semantic_graph.hasNode(self.current_config)
+                        and self.long_term_goal != self.current_config):
+                    new_episodes, _ = self.guided_rollout(self.long_term_goal, evaluation=False,
+                                                        agent_network=agent_network, episode_duration=self.episode_duration,
+                                                        episode_budget=self.max_episodes - len(all_episodes))
+                else:
+                    new_episodes = [self.generate_one_rollout(self.long_term_goal, False, self.episode_duration)]
             all_episodes += new_episodes
             # if all_episodes[-1]['success'][-1]:
             #     before_last_goal = tuple(all_episodes[-1]['ag'][0])

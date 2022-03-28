@@ -15,6 +15,25 @@ def weights_init_(m):
         torch.nn.init.xavier_uniform_(m.weight, gain=1)
         torch.nn.init.constant_(m.bias, 0)
 
+
+class PhiNetwork(nn.Module):
+    def __init__(self, inp, out):
+        super(PhiNetwork, self).__init__()
+
+        self.linear1 = nn.Linear(inp, 64)
+        self.linear2 = nn.Linear(64, 64)
+        self.linear3 = nn.Linear(64, out)
+
+        self.apply(weights_init_)
+
+    def forward(self, v):
+        x1 = F.relu(self.linear1(v))
+        x1 = F.relu(self.linear2(x1))
+        x1 = self.linear3(x1)
+
+        return x1
+
+
 class QNetworkFlat(nn.Module):
     def __init__(self, inp, out):
         super(QNetworkFlat, self).__init__()

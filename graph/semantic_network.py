@@ -89,15 +89,10 @@ class SemanticNetwork():
             return self.teacher.sample_goal_uniform(nb_goal)
         else :
             try:
-                # return random.choices(self.semantic_graph.configs.inverse,k=nb_goal)
-                frontier_ids = random.choices(list(self.semantic_graph.frontier),k=nb_goal)
-                return [self.semantic_graph.configs.inverse[i] for i in frontier_ids]
+                return random.choices(self.semantic_graph.configs.inverse,k=nb_goal)
             except KeyError:
                 # If there are no goals discovered yet, returns (0, 0)
-                try:
-                    return random.choices(self.semantic_graph.configs.inverse,k=nb_goal)
-                except KeyError:
-                    return [(0, 0) for _ in range(nb_goal)]
+                return [(0, 0) for _ in range(nb_goal)]
 
     def sample_goal_in_frontier(self,current_node,k):
         return self.teacher.sample_in_frontier(current_node,self.semantic_graph,k)

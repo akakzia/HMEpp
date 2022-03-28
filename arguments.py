@@ -15,14 +15,14 @@ def get_args():
     parser.add_argument('--num-workers', type=int, default=MPI.COMM_WORLD.Get_size(), help='the number of cpus to collect samples')
     parser.add_argument('--cuda', action='store_true', help='if use gpu do the acceleration')
     # the environment arguments
-    parser.add_argument('--env-name', type=str, default='PointCorridor-v1', help='The name of the Maze environment')
+    parser.add_argument('--env-name', type=str, default='PointIntermediate-v1', help='The name of the Maze environment')
     parser.add_argument('--agent', type=str, default='SAC', help='the RL algorithm name')
     # the training arguments
     parser.add_argument('--n-epochs', type=int, default=100, help='the number of epochs to train the agent')
     parser.add_argument('--n-cycles', type=int, default=10, help='the times to collect samples per epoch')
     parser.add_argument('--n-batches', type=int, default=30, help='the times to update the network')
-    parser.add_argument('--num-rollouts-per-mpi', type=int, default=100, help='the rollouts per mpi')
-    parser.add_argument('--episode-duration', type=int, default=10, help='number of time steps for each mini episodes')
+    parser.add_argument('--num-rollouts-per-mpi', type=int, default=50, help='the rollouts per mpi')
+    parser.add_argument('--episode-duration', type=int, default=20, help='number of time steps for each mini episodes')
     parser.add_argument('--batch-size', type=int, default=256, help='the sample batch size')
     # the replay arguments
     parser.add_argument('--replay-strategy', type=str, default='future', help='the HER strategy')
@@ -69,7 +69,7 @@ def get_args():
     parser.add_argument('--strategy', type=int, default=4, help='Possible values: 0: Frontier; 1: Frontier and Stop, 2: Frontier and Beyond'
                                                                    '3: Beyond, 4: Frontier and n Beyonds')
 
-    parser.add_argument('--internalization-prob', type=float, default=0.8, help='the probability of internalizing SP intervention')
+    parser.add_argument('--internalization-prob', type=float, default=0.5, help='the probability of internalizing SP intervention')
     parser.add_argument('--intern-queue', type=int, default=10, help='Length of the internalization memory buffer')
     parser.add_argument('--ss-internalization-prob', type=float, default=0., help='the probability of internalizing stepping stones')
 
