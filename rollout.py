@@ -403,7 +403,7 @@ class HMERolloutWorker(RolloutWorker):
         nb_total_goals = len(agent_network.teacher.oracle_graph.configs)
         nb_discovered_goals = len(agent_network.semantic_graph.configs)
         if nb_discovered_goals >= nb_total_goals:
-            # Bye bye SP
+            # Remove Social Intervention
             self.args.intervention_prob = 0
         if np.random.uniform() < self.args.intervention_prob:
             # SP intervenes

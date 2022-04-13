@@ -16,11 +16,11 @@ from typing import DefaultDict
 from bidict import bidict
 from graph.semantic_network import SemanticNetwork
 from graph.semantic_graph import SemanticGraph
+from utils import AVAILABLE_ENVS, AVAILABLE_ALGOS
 
 def get_env_params(env):
     obs = env.reset()
 
-    # close the environment
     params = {'obs': obs['observation'].shape[0], 'goal': obs['desired_goal'].shape[0],
               'action': env.action_space.shape[0], 'action_max': env.action_space.high[0],
               'max_timesteps': env._max_episode_steps, 'cells': env.cells_graph}
@@ -33,8 +33,7 @@ def launch(args):
     t_total_init = time.time()
 
     # Make the environment
-    assert args.env_name in ['PointIntermediate-v1', 'PointHard-v1', 'PointUMaze-v1', 'PointSquareRoom-v1', 'PointCorridor-v1', 'PointLongCorridor-v1', 'Point4Rooms-v1', 'PointBottleneck-v1'], \
-    'Please use one of the following environments: PointIntermediate-v1, PointHard-v1, PointUMaze-v1, PointSquareRoom-v1, PointCorridor-v1, PointLongCorridor-v1, Point4Rooms-v1'
+    assert args.env_name in AVAILABLE_ENVS, 'Please use one of the following environments: {}'.format(AVAILABLE_ENVS)
     env = gym.make(args.env_name)
 
     # set random seeds for reproducibility
@@ -54,7 +53,7 @@ def launch(args):
     args.env_params = get_env_params(env)
 
     # Initialize RL Agent
-    assert args.agent in ['SAC', 'TQC'], 'Please select SAC or TQC as algorithm'
+    assert args.agent in AVAILABLE_ALGOS, 'Please select an implemented algorithms: {}'.format(AVAILABLE_ALGOS)
     policy = RLAgent(args, env.compute_reward)
 
     # Initialize Rollout Worker
@@ -78,16 +77,6 @@ def launch(args):
     episode_count = 0
     for epoch in range(args.n_epochs):
         t_init = time.time()
-
-        # setup time_tracking
-        # time_dict = dict(goal_sampler=0,
-        #                  rollout=0,
-        #                  gs_update=0,
-        #                  store=0,
-        #                  norm_update=0,
-        #                  policy_train=0,
-        #                  eval=0,
-        #                  epoch=0)
         time_dict = DefaultDict(int)
 
 
@@ -137,16 +126,12 @@ def launch(args):
             episodes = rollout_worker.test_rollout(eval_goals,agent_network,
                                                             episode_duration=args.episode_duration,
                                                             animated=False)
-            # results = np.array([str(e['g'][0]) == str(e['ag'][-1]) for e in episodes]).astype(np.int)
             rewards = np.array([e['rewards'][-1] for e in episodes])
-            # rewards = np.array([e['rewards'][-1] for e in episodes])
             all_results = MPI.COMM_WORLD.gather(rewards, root=0)
-            # all_rewards = MPI.COMM_WORLD.gather(rewards, root=0)
             time_dict['eval'] += time.time() - t_i
 
             # Logs
             if rank == 0:
-                # assert len(all_results) == args.num_workers  # MPI test
                 av_res = np.array(all_results).mean(axis=0)
                 global_sr = np.mean(av_res)
                 agent_network.log(logger)

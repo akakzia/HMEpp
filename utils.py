@@ -134,3 +134,8 @@ class CompressPDF:
         except subprocess.CalledProcessError as e:
             print("Unexpected error:".format(e.output))
             return False
+
+AVAILABLE_ENVS = ['PointIntermediate-v1', 'PointHard-v1', 'PointUMaze-v1', 'PointSquareRoom-v1', 'PointCorridor-v1', 'PointLongCorridor-v1', 
+                  'Point4Rooms-v1', 'PointBottleneck-v1']
+
+AVAILABLE_ALGOS = ['SAC', 'TQC']

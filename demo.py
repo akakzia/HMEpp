@@ -25,7 +25,7 @@ def get_env_params(env):
 if __name__ == '__main__':
     num_eval = 1
     path = '/home/ahmed/models/'
-    model_path = path + 'model_80.pt'
+    model_path = path + 'model_90.pt'
 
     args = get_args()
 
@@ -65,19 +65,19 @@ if __name__ == '__main__':
     nk_graph = nk.Graph(0, weighted=True, directed=True)
     semantic_graph = SemanticGraph(bidict(), nk_graph, args=args)
     agent_network = SemanticNetwork(semantic_graph, args=args)
-    agent_network = agent_network.load(path, 80, args)
+    agent_network = agent_network.load(path, 90, args)
 
     # Affect teacher to agent
     agent_network.teacher.oracle_graph = sp_network.semantic_graph
 
-    eval_goals = [(e[-2], e[-1]) for e in args.env_params['cells'][-20:]]
+    eval_goals = [(e[-2], e[-1]) for e in args.env_params['cells']]
 
     all_results = []
     for i in range(num_eval):
-        episodes = rollout_worker.test_rollout(eval_goals, agent_network,
+        episodes = rollout_worker.test_social_rollouts(eval_goals, agent_network,
                                                episode_duration=args.episode_duration,
-                                               animated=False)
-        results = np.array([e['success'][-1].astype(np.float32) for e in episodes])
+                                               animated=True)
+        results = np.array([e['rewards'][-1].astype(np.float32) for e in episodes])
         all_results.append(results)
 
     results = np.array(all_results)
