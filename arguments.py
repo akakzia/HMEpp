@@ -15,14 +15,14 @@ def get_args():
     parser.add_argument('--num-workers', type=int, default=MPI.COMM_WORLD.Get_size(), help='the number of cpus to collect samples')
     parser.add_argument('--cuda', action='store_true', help='if use gpu do the acceleration')
     # the environment arguments
-    parser.add_argument('--env-name', type=str, default='PointIntermediate-v1', help='The name of the Maze environment')
+    parser.add_argument('--env-name', type=str, default='PointHard-v1', help='The name of the Maze environment')
     parser.add_argument('--agent', type=str, default='SAC', help='the RL algorithm name')
     # the training arguments
     parser.add_argument('--n-epochs', type=int, default=100, help='the number of epochs to train the agent')
     parser.add_argument('--n-cycles', type=int, default=10, help='the times to collect samples per epoch')
     parser.add_argument('--n-batches', type=int, default=30, help='the times to update the network')
     parser.add_argument('--num-rollouts-per-mpi', type=int, default=50, help='the rollouts per mpi')
-    parser.add_argument('--episode-duration', type=int, default=20, help='number of time steps for each mini episodes')
+    parser.add_argument('--episode-duration', type=int, default=10, help='number of time steps for each mini episodes')
     parser.add_argument('--batch-size', type=int, default=256, help='the sample batch size')
     # the replay arguments
     parser.add_argument('--replay-strategy', type=str, default='future', help='the HER strategy')
@@ -50,24 +50,27 @@ def get_args():
     # the gnns arguments
     parser.add_argument('--architecture', type=str, default='flat', help='The architecture of the networks')
     # the testing arguments
-    parser.add_argument('--n-test-rollouts', type=int, default=5, help='the number of tests')
+    parser.add_argument('--n-test-rollouts', type=int, default=1, help='the number of tests')
     # graph arguments : 
     parser.add_argument('--edge-sr', type=str, default='exp_moving_average', help='moving_average or exp_moving_average')
     parser.add_argument('--edge-lr', type=float, default=0.01, help='SR learning rate')
-    parser.add_argument('--edge-prior', type=float, default=0.5, help='default value for edges')
+    parser.add_argument('--edge-prior', type=float, default=1.0, help='default value for edges')
     parser.add_argument('--expert-graph-start', type=bool, default=False, help='If the agent starts with an expert graph')
     parser.add_argument('--evaluation-algorithm', type=str, default='dijkstra', help='dijkstra (best SR) or bfs (shortest path)')
     parser.add_argument('--adjacency-bias', type=bool, default=False, help='Construct edge only if cells are adjacent')
     # rollout exploration args
     parser.add_argument('--rollout-exploration', type=str, default='sr_and_k_distance', help='method to compute best path in train rollouts : sr_and_best_distance sr_and_k_distance or sample_sr')
-    parser.add_argument('--rollout-exploration-k', type=int, default=5, help='sample among k best paths')
+    parser.add_argument('--rollout-exploration-k', type=int, default=1, help='sample among k best paths')
     parser.add_argument('--rollout-distance-ratio', type=float, default=0.5, help='indicate the ratio at which exploration alternate beetween sr and distance criteria')
     parser.add_argument('--max-path-len', type=int, default=100, help='maximum path length')
     # Help Me Explore args
-    parser.add_argument('--intervention-prob', type=float, default=1., help='the probability of SP intervention')
+    parser.add_argument('--intervention-prob', type=float, default=0., help='the probability of SP intervention')
     parser.add_argument('--exploration-noise-prob', type=float, default=0., help='When going to frontier, apply noise at ratio')
     parser.add_argument('--strategy', type=int, default=4, help='Possible values: 0: Frontier; 1: Frontier and Stop, 2: Frontier and Beyond'
                                                                    '3: Beyond, 4: Frontier and n Beyonds')
+    
+    parser.add_argument('--autotelic-strategy', type=int, default=0, help='Possible values: 0: Unif; 1: Front, 2: Neighbour')
+    parser.add_argument('--remember-ratio', type=float, default=0.3, help='Proportion of running episodes to remember')
 
     parser.add_argument('--internalization-prob', type=float, default=0.5, help='the probability of internalizing SP intervention')
     parser.add_argument('--intern-queue', type=int, default=10, help='Length of the internalization memory buffer')

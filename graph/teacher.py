@@ -110,6 +110,19 @@ class Teacher():
             return goals
         except IndexError:
             return []
+    
+    def sample_terminal(self, current_node,agent_graph,k):
+        reachable = agent_graph.get_reachables_node_ids(current_node)
+        reachable_terminal = [agent_graph.getConfig(node_id)
+                              for node_id in reachable
+                              if node_id in self.agent_terminal]
+        
+        if len(reachable_terminal) > 0: 
+            goals = random.choices(reachable_terminal, k=k)
+        else:
+            goals = random.choices([agent_graph.getConfig(i) for i in reachable], k=k)
+        return goals
+
 
     def sample_from_frontier(self,node,agent_graph,k):
         to_explore = []

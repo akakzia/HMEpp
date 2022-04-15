@@ -5,6 +5,18 @@ from mpi4py import MPI
 from graph.teacher import Teacher
 import pickle
 
+EPSILON_TRAVEL = 0.1
+
+def get_consecutive_pairs(ags):
+    """ Given a sequence of ags for an episode, returns a list of consecutive pairs """
+    res = set()
+    i = 0
+    for i in range(ags.shape[0]-1):
+        if tuple(ags[i]) != tuple(ags[i+1]):
+            res.add((tuple(ags[i]), tuple(ags[i+1])))
+    
+    return res
+
 class SemanticNetwork():
     
     def __init__(self,semantic_graph :SemanticGraph,exp_path=None,args=None):
@@ -13,6 +25,26 @@ class SemanticNetwork():
         self.args = args
         self.rank = MPI.COMM_WORLD.Get_rank()
         self.exp_path = exp_path
+
+        self.nb_discovered_goals = 0
+        # Keep track of successes and failures to estimate Learning Progress
+        self.successes_and_failures = []
+        self.queue_lp = 100
+        self.LP = 0
+        self.LP_max = 0.5
+
+        # Keep track of number of discovered goals to estimate discovery speed
+        self.nb_discovered_list = []
+        self.queue_discovery = 10 * args.num_workers
+        self.DS = 0
+
+        # Query proba initialization
+        self.query_lp = 0
+        self.query_ds = 0
+        self.query_p = 0
+
+        # Keep counts of edge travels
+        self.edge_travel_counts = {}
 
         self.init_stats()
 
@@ -39,32 +71,94 @@ class SemanticNetwork():
                                 for e in eps] # flatten the list of episodes gathered by all actors
         # update agent graph :
         for e in all_episode_list:
-            # Verify if last achieved goal is stable during last 10 steps
-            # condition = True
-            # i = -1
-            # while condition and i > -10:
-            #     condition = (str(e['ag'][-i]) == str(e['ag'][-i-1]))
-            #     i -= 1
-            condition = (str(e['ag'][-1]) == str(e['ag'][-2]))
-            if condition:
-                start_config = tuple(e['ag'][0])
-                achieved_goal = tuple(e['ag'][-1])
-                goal = tuple(e['g'][-1])
-                success = e['success'][-1]
+            # For each episode, create an edge between all consecutive ag
+            consecutive_pairs_set = get_consecutive_pairs(e['ag'])
+            if len(consecutive_pairs_set) > 0:
+                for pair in consecutive_pairs_set:
+                    # Create node for each semantic state
+                    self.semantic_graph.create_node(pair[0])
+                    self.semantic_graph.create_node(pair[1])
 
-                self.semantic_graph.create_node(start_config)
-                self.semantic_graph.create_node(achieved_goal)
+                    # Create edge if not existant using edge prior
+                    if not self.semantic_graph.hasEdge(pair[0], pair[1]):
+                        self.semantic_graph.create_edge_stats((pair[0], pair[1]), self.args.edge_prior)
+                    
+                    # Update travel counts for Neighbour strategy
+                    self.update_travel_counts(pair[0], pair[1])
+            
+            # If the only one consecutive pair, then append success estimates
+            # if len(consecutive_pairs_set) == 1:
+            #     goal = tuple(e['g'][-1])
+            #     success = e['success'][-1]
+            #     if not e['beyond_fail'] and self.semantic_graph.getNodeId(goal) is not None:
+            #         self.update_or_create_edge(pair[0], goal, success)
+                
+            if e['self_eval']:
+                self.successes_and_failures.append(e['success'][-1])
 
-                if not e['beyond_fail']: 
-                    if self.semantic_graph.getNodeId(goal) is not None:
-                        self.update_or_create_edge(start_config, goal, success)
-                if (achieved_goal != goal and start_config != achieved_goal
-                        and not self.semantic_graph.hasEdge(start_config, achieved_goal)):
-                    self.semantic_graph.create_edge_stats((start_config, achieved_goal), self.args.edge_prior)
+
+            # condition = (str(e['ag'][-1]) == str(e['ag'][-2]))
+            # if condition:
+            #     start_config = tuple(e['ag'][0])
+            #     achieved_goal = tuple(e['ag'][-1])
+            #     goal = tuple(e['g'][-1])
+            #     success = e['success'][-1]
+
+            #     self.semantic_graph.create_node(start_config)
+            #     self.semantic_graph.create_node(achieved_goal)
+
+            #     if not e['beyond_fail']: 
+            #         if self.semantic_graph.getNodeId(goal) is not None:
+            #             self.update_or_create_edge(start_config, goal, success)
+            #     if (achieved_goal != goal and start_config != achieved_goal
+            #             and not self.semantic_graph.hasEdge(start_config, achieved_goal)):
+            #         self.semantic_graph.create_edge_stats((start_config, achieved_goal), self.args.edge_prior)
+            
+            # if e['self_eval']:
+            #     self.successes_and_failures.append(e['success'][-1])
 
         # update frontier :
         self.semantic_graph.update()
         self.teacher.compute_frontier(self.semantic_graph)
+        self.nb_discovered_goals = len(self.semantic_graph.configs)
+        self.nb_discovered_list.append(self.nb_discovered_goals)
+        self.update_estimates()
+    
+    def update_estimates(self):
+        """ Updates estimates of learning progress and discovery speed to determine query proba """
+        self.successes_and_failures = self.successes_and_failures[-self.queue_lp:]
+        self.nb_discovered_list = self.nb_discovered_list[-self.queue_discovery:]
+        # Update LP estimate
+        n_points_lp = len(self.successes_and_failures)
+        if n_points_lp > 20:
+            sf = np.array(self.successes_and_failures)
+            self.LP = np.abs(np.sum(sf[n_points_lp // 2:]) - np.sum(sf[: n_points_lp // 2])) / n_points_lp
+        
+        # Update DS estimate 
+        n_points_ds = len(self.nb_discovered_list)
+        if n_points_ds > 10:
+            nb_disc = np.array(self.nb_discovered_list)
+            self.DS = (nb_disc[-1] - nb_disc[-n_points_ds]) / nb_disc[-1]
+        
+        # self.query_p = 0.5 * (((self.LP_max - self.LP) / self.LP_max) + self.DS)
+        if n_points_lp > 20 and n_points_ds > 5:
+            if self.LP == 0:
+                self.query_lp = 1.
+            else:
+                self.query_lp = 1 / (500 * self.LP)
+            if self.DS == 0:
+                self.query_ds = 1.
+            else:
+                self.query_ds = 1 / (200 * self.DS)
+            
+            self.query_p = 0.5 * (self.query_ds + self.query_lp)
+
+    def update_travel_counts(self, source, target):
+        """ Given a traveled edge source -> target, update traveling counts """
+        try:
+            self.edge_travel_counts[(source, target)] += 1
+        except KeyError:
+            self.edge_travel_counts[(source, target)] = 1
     
     def update_or_create_edge(self,start,end,success):
         if start != end:
@@ -97,6 +191,9 @@ class SemanticNetwork():
     def sample_goal_in_frontier(self,current_node,k):
         return self.teacher.sample_in_frontier(current_node,self.semantic_graph,k)
     
+    def sample_terminal(self,current_node,k):
+        return self.teacher.sample_terminal(current_node,self.semantic_graph,k)
+    
     def sample_from_frontier(self,frontier_node,k):
         return self.teacher.sample_from_frontier(frontier_node,self.semantic_graph,k)
     
@@ -109,6 +206,25 @@ class SemanticNetwork():
             return random.choice(neighbours)
         else : 
             return None
+    
+    def sample_neighbour_by_counts(self,source, excluding = []):
+        neighbours = list(filter( lambda x : x not in excluding, self.semantic_graph.iterNeighbors(source)))
+        if neighbours:
+            # Perform epsilon exploration
+            # With proba epsilon, take a random neighbour, else, take the least traveled edge
+            if np.random.uniform() < EPSILON_TRAVEL:
+                return random.choice(neighbours), [source]
+            else:
+                least_traveled = neighbours[0]
+                min_counts = self.edge_travel_counts[(source, least_traveled)]
+                for i in range(1, len(neighbours)):
+                    current_min_counts = self.edge_travel_counts[(source, neighbours[i])] 
+                    if current_min_counts < min_counts:
+                        least_traveled = neighbours[i]
+                        min_counts = current_min_counts
+                return least_traveled, neighbours + [source]
+        else : 
+            return None, None
 
     def sample_neighbour_based_on_SR_to_goal(self,source,reversed_dijkstra,goal, excluding = []):
 
@@ -160,6 +276,9 @@ class SemanticNetwork():
         logger.record_tabular('frontier_len',len(self.teacher.agent_frontier))
         logger.record_tabular('stepping_stones_len', len(self.teacher.agent_stepping_stones))
         logger.record_tabular('terminal_len', len(self.teacher.agent_terminal))
+        logger.record_tabular('_LP', self.LP)
+        logger.record_tabular('_DS', self.DS)
+        logger.record_tabular('_query_proba', self.query_p)
 
     def save(self,model_path, epoch):
         self.semantic_graph.save(model_path+'/',f'{epoch}')

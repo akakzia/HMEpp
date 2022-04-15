@@ -1,9 +1,12 @@
+from cProfile import run
 import random
 from graph.semantic_network import SemanticNetwork
 import numpy as np
 from mpi4py import MPI
 import time
+import math
 
+EPSILON_EVAL = 0.1
 class RolloutWorker:
     def __init__(self, env, policy, args):
         self.env = env
@@ -102,10 +105,18 @@ class RolloutWorker:
             current_goal,goal_dist = self.get_next_goal(agent_network,goal,evaluation)
                 
             episode = self.generate_one_rollout(current_goal, evaluation, episode_duration, animated=animated)
-            episodes.append(episode)
+            success = episode['success'][-1]
+
             self.current_goal_id+=1
+
+            # Add self eval key to check whether or not episode is considered for estimating LP
+            # The only episodes used to estimate LP are 1) when the agent fails; 2) the last episode of the config path
+            episode['self_eval'] = evaluation if self.current_goal_id == len(self.config_path) else False
+
+            episodes.append(episode)
             
-            success = episodes[-1]['success'][-1]
+            
+            # success = episodes[-1]['success'][-1]
 
             if animated:
                 print(f'success ',success  )
@@ -320,41 +331,66 @@ class HMERolloutWorker(RolloutWorker):
         Return a list of episode rollouts by the agent in an autotelic fashion"""
         all_episodes = []
 
+        self_eval = True if np.random.uniform() < EPSILON_EVAL else False
+        excluding = []
         self.reset()
         while len(all_episodes) < self.max_episodes:
-            internalization = False
+            new_episodes = []
             # If no SP intervention
             t_i = time.time()
             if self.args.expert_graph_start:
                 self.long_term_goal = agent_network.sample_goal_uniform(1, use_oracle=True)[0]
             else:
                 if len(agent_network.semantic_graph.configs) > 0:
-                    self.long_term_goal = agent_network.sample_goal_uniform(1, use_oracle=False)[0]
+                    if self.args.autotelic_strategy == 0:
+                        self.long_term_goal = agent_network.sample_goal_uniform(1, use_oracle=False)[0]
+                    elif self.args.autotelic_strategy == 1:
+                        self.long_term_goal = agent_network.sample_goal_in_frontier(self.current_config, 1)[0]
+                    elif self.args.autotelic_strategy == 2:
+                        # If strategy is 2 (one goal at a step) then pass and handle goal sampling later (no long_term_goal here)
+                        pass
+                    else:
+                        raise NotImplementedError
                 else:
                     self.long_term_goal = tuple(np.random.choice([0., 0.], size=(1, self.goal_dim))[0])
 
             if time_dict is not None:
                 time_dict['goal_sampler'] += time.time() - t_i
-            if self.args.expert_graph_start:
-                new_episodes, _ = self.guided_rollout(self.long_term_goal, evaluation=False,
-                                                        agent_network=agent_network, episode_duration=self.episode_duration,
-                                                        episode_budget=self.max_episodes - len(all_episodes))
-            else:
-                if (agent_network.semantic_graph.hasNode(self.long_term_goal)
-                        and agent_network.semantic_graph.hasNode(self.current_config)
-                        and self.long_term_goal != self.current_config):
-                    new_episodes, _ = self.guided_rollout(self.long_term_goal, evaluation=False,
-                                                        agent_network=agent_network, episode_duration=self.episode_duration,
-                                                        episode_budget=self.max_episodes - len(all_episodes))
+            if self.args.autotelic_strategy == 2 and len(agent_network.semantic_graph.configs) > 0:
+                next_goal, excluding = agent_network.sample_neighbour_by_counts(self.current_config, excluding=excluding)
+                if next_goal:
+                    failures_in_a_row = 0
+                    success = False
+                    while failures_in_a_row < 5 and not success:
+                        new_episode = self.generate_one_rollout(next_goal, self_eval, self.episode_duration)
+                        new_episodes.append(new_episode)
+                        success = new_episode['success'][-1]
+                        if not success:
+                            failures_in_a_row += 1
+                    if failures_in_a_row >= 5:
+                        excluding = []
+                        self.reset()
                 else:
-                    new_episodes = [self.generate_one_rollout(self.long_term_goal, False, self.episode_duration)]
-            all_episodes += new_episodes
-            # if all_episodes[-1]['success'][-1]:
-            #     before_last_goal = tuple(all_episodes[-1]['ag'][0])
-            #     last_goal = tuple(all_episodes[-1]['ag'][-1])
-            #     if (before_last_goal, last_goal) in self.stepping_stones_beyond_pairs_list:
-            #         self.to_remove_individual.append((before_last_goal, last_goal))
-            self.reset()
+                    excluding = []
+                    self.reset()
+            else:
+                if self.args.expert_graph_start:
+                    new_episodes, _ = self.guided_rollout(self.long_term_goal, evaluation=self_eval,
+                                                            agent_network=agent_network, episode_duration=self.episode_duration,
+                                                            episode_budget=self.max_episodes - len(all_episodes))
+                else:
+                    if (agent_network.semantic_graph.hasNode(self.long_term_goal)
+                            and agent_network.semantic_graph.hasNode(self.current_config)
+                            and self.long_term_goal != self.current_config):
+                        new_episodes, _ = self.guided_rollout(self.long_term_goal, evaluation=self_eval,
+                                                            agent_network=agent_network, episode_duration=self.episode_duration,
+                                                            episode_budget=self.max_episodes - len(all_episodes))
+                    else:
+                        new_episodes = [self.generate_one_rollout(self.long_term_goal, False, self.episode_duration)]
+                self.reset()
+            len_running_episodes = len(new_episodes)
+            last_kept_episodes = math.ceil(len_running_episodes * self.args.remember_ratio)
+            all_episodes += new_episodes[-last_kept_episodes:]
         return all_episodes
 
     def internalize_social_episodes(self, agent_network, time_dict):
@@ -364,13 +400,13 @@ class HMERolloutWorker(RolloutWorker):
         self.reset()
         while len(all_episodes) < self.max_episodes:
             if self.state == 'GoToFrontier':
-                no_noise = np.random.uniform() > self.exploration_noise_prob
-                episodes, _ = self.guided_rollout(self.internalized_ss, no_noise, agent_network, self.episode_duration,
+                # no_noise = np.random.uniform() > self.exploration_noise_prob
+                episodes, _ = self.guided_rollout(self.internalized_ss, True, agent_network, self.episode_duration,
                                                   episode_budget=self.max_episodes - len(all_episodes))
                 all_episodes += episodes
 
                 success = episodes[-1]['success'][-1]
-                if success and self.current_config == self.internalized_ss and self.strategy == 2:
+                if success and self.current_config == self.internalized_ss and self.strategy in [2, 4]:
                     self.state = 'Explore'
                 else:
                     self.reset()
@@ -383,10 +419,10 @@ class HMERolloutWorker(RolloutWorker):
                 all_episodes.append(episode)
                 # success = episode['success'][-1]
 
-                # if success and (self.internalized_ss, self.internalized_beyond) in self.stepping_stones_beyond_pairs_list:
+                if success and (self.internalized_ss, self.internalized_beyond) in self.stepping_stones_beyond_pairs_list:
                     # remove pair to agent's memory
                     # self.to_remove_internalization.append((self.internalized_ss, self.internalized_beyond))
-                    # self.stepping_stones_beyond_pairs_list.remove((self.internalized_ss, self.internalized_beyond))
+                    self.stepping_stones_beyond_pairs_list.remove((self.internalized_ss, self.internalized_beyond))
             else:
                 raise Exception(f"unknown state : {self.state}")
 
@@ -396,16 +432,34 @@ class HMERolloutWorker(RolloutWorker):
         """ Synchronize the list of pairs (stepping stone, Beyond) between all workers"""
         # Transformed to set to avoid duplicates
         self.stepping_stones_beyond_pairs_list = MPI.COMM_WORLD.allreduce(self.stepping_stones_beyond_pairs_list)
-        self.stepping_stones_beyond_pairs_list = self.stepping_stones_beyond_pairs_list[-self.args.intern_queue:]
+        # self.stepping_stones_beyond_pairs_list = self.stepping_stones_beyond_pairs_list[-self.args.intern_queue:]
 
 
     def train_rollout(self, agent_network, time_dict=None):
         nb_total_goals = len(agent_network.teacher.oracle_graph.configs)
-        nb_discovered_goals = len(agent_network.semantic_graph.configs)
+        nb_discovered_goals = agent_network.nb_discovered_goals
+        # print(f'len internalized pairs: {len(self.stepping_stones_beyond_pairs_list):d}')
+        # print(f'LP = {agent_network.LP:.2f}')
+        # print(f'DS = {agent_network.DS:.2f}')
+        # print(f'query LP = {agent_network.query_lp:f}')
+        # print(f'query DS = {agent_network.query_ds:f}')
+        # print(f'query = {agent_network.query_p:f}')
+        # print('=-' * 30)
+        # if nb_discovered_goals >= nb_total_goals:
+        #     # Remove Social Intervention
+        #     self.args.intervention_prob = 0
         if nb_discovered_goals >= nb_total_goals:
-            # Remove Social Intervention
-            self.args.intervention_prob = 0
-        if np.random.uniform() < self.args.intervention_prob:
+            agent_network.query_p = 0
+        
+        # if np.random.uniform() < agent_network.query_p:
+        #     if len(self.stepping_stones_beyond_pairs_list) > 0:
+        #         all_episodes = self.internalize_social_episodes(agent_network, time_dict)
+        #     else:
+        #         all_episodes = self.perform_social_episodes(agent_network, time_dict)
+        # else:
+        #     all_episodes = self.perform_individual_episodes(agent_network, time_dict)
+
+        if np.random.uniform() < agent_network.query_p:
             # SP intervenes
             all_episodes = self.perform_social_episodes(agent_network, time_dict)
         else:
